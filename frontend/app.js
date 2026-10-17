@@ -135,7 +135,7 @@ function stopRecognition() {
 }
 
 function startRecognition() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SpeechRecognition = window.SpeechRecognitionEvent || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     showError("Speech recognition is unavailable in this WebView.");
     hideWindow().catch((error) => showError(String(error)));
