@@ -23,6 +23,9 @@
         "skipTaskbar": true,
         "resizable": false
       }
-    ]
+    ],
+    "security":{
+      "capabilities": ["com.sunday.assistant.capability"]
+    }
   }
 }
