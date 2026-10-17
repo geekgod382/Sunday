@@ -1,0 +1,129 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", sans-serif;
+  color: #f4f5f7;
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 12px;
+  background: transparent;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.brand {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b8c7ff;
+}
+
+.icon-button {
+  width: 30px;
+  padding: 4px;
+  background: transparent;
+  color: #c8cad0;
+}
+
+.view {
+  padding-top: 10px;
+}
+
+#assistant {
+  display: grid;
+  height: calc(100% - 10px);
+  place-items: center;
+}
+
+.hidden {
+  display: none !important;
+}
+
+h1 {
+  margin: 8px 0;
+  font-size: 20px;
+}
+
+p {
+  margin: 8px 0;
+}
+
+.muted,
+.hint {
+  color: #a9adb8;
+  font-size: 12px;
+}
+
+label {
+  display: block;
+  margin: 12px 0 5px;
+  font-size: 12px;
+  color: #c8cad0;
+}
+
+input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid #404653;
+  border-radius: 9px;
+  outline: none;
+  background: #20242d;
+  color: #f4f5f7;
+}
+
+input:focus {
+  border-color: #879eff;
+}
+
+button {
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.primary {
+  padding: 9px 13px;
+  background: #718cff;
+  color: #111522;
+  font-weight: 650;
+}
+
+#save-key {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.status {
+  margin: 0;
+  color: #b9bfcc;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.error {
+  margin: 10px 0 0;
+  color: #ff9d9d;
+  font-size: 12px;
+}
+
+.ready-message {
+  margin: 52px 0;
+  color: #b9d5ff;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+}

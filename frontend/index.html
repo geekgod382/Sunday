@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; script-src 'self';"
+    />
+    <title>Sunday</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header id="app-header">
+        <span class="brand">sunday</span>
+        <button id="settings-button" class="icon-button" aria-label="Settings">⚙</button>
+      </header>
+
+      <section id="setup" class="view hidden">
+        <h1>Connect your AI</h1>
+        <p class="muted">Your key is stored in the Windows credential vault.</p>
+        <label for="api-key">API key</label>
+        <input id="api-key" type="password" autocomplete="off" placeholder="Paste your API key" />
+        <p id="provider-hint" class="hint">Provider will be detected from the key.</p>
+        <label for="model">Model</label>
+        <input id="model" type="text" autocomplete="off" placeholder="Detected provider's default model" />
+        <button id="save-key" class="primary">Save securely</button>
+        <p id="ready-message" class="ready-message hidden">Sunday is ready to use</p>
+      </section>
+
+      <section id="assistant" class="view hidden">
+        <p class="status">Listening ...</p>
+      </section>
+
+      <p id="error" class="error hidden" role="alert"></p>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
