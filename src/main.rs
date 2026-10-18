@@ -20,6 +20,7 @@ struct Settings {
 #[derive(Default)]
 struct AppState {
     settings: Mutex<Option<Settings>>,
+    recording: Mutex<Option<speech::Recording>>,
 }
 
 #[derive(Serialize)]
@@ -172,6 +173,46 @@ struct AskResult {
 #[tauri::command]
 async fn speak(text: String) -> Result<(), String> {
     speech::speak(text).await
+}
+
+#[tauri::command]
+async fn prepare_speech_model(app: AppHandle) -> Result<(), String> {
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not find Sunday's data folder: {error}"))?;
+    speech::prepare_model(directory.join("models").join("ggml-tiny.en.bin")).await
+}
+
+#[tauri::command]
+fn start_recording(state: State<'_, AppState>) -> Result<(), String> {
+    let mut recording = state
+        .recording
+        .lock()
+        .map_err(|_| "Sunday's microphone state is unavailable.".to_string())?;
+    if recording.is_some() {
+        return Err("Sunday is already recording.".to_string());
+    }
+    *recording = Some(speech::start_recording()?);
+    Ok(())
+}
+
+#[tauri::command]
+async fn stop_recording(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+    let recording = state
+        .recording
+        .lock()
+        .map_err(|_| "Sunday's microphone state is unavailable.".to_string())?
+        .take()
+        .ok_or_else(|| "Sunday is not currently recording.".to_string())?;
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not find Sunday's data folder: {error}"))?;
+    let model_path = directory.join("models").join("ggml-tiny.en.bin");
+    tauri::async_runtime::spawn_blocking(move || speech::transcribe(recording, model_path))
+        .await
+        .map_err(|error| format!("Speech transcription task failed: {error}"))?
 }
 
 #[tauri::command]
@@ -375,12 +416,15 @@ fn main() {
             detect_provider,
             get_status,
             open_url,
+            prepare_speech_model,
             save_api_key,
             save_model,
             set_hotkey_active,
             hide_window,
             show_window,
-            speak
+            speak,
+            start_recording,
+            stop_recording
         ])
         .setup(|app| {
             #[cfg(windows)]

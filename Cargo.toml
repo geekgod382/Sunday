@@ -8,6 +8,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+cpal = "0.18"
 keyring = { version = "3", features = ["windows-native"] }
 open = "5"
 regex = "1"
@@ -17,6 +18,7 @@ serde_json = "1"
 tauri = { version = "2", features = [] }
 tts = "0.26"
 url = "2"
+whisper-rs = "0.16"
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",
   "Win32_System_LibraryLoader",

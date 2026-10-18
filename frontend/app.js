@@ -9,15 +9,16 @@ const modelInput = document.querySelector("#model");
 const providerHint = document.querySelector("#provider-hint");
 const errorBox = document.querySelector("#error");
 const saveButton = document.querySelector("#save-key");
+const modelStatus = document.querySelector("#model-status");
 const readyMessage = document.querySelector("#ready-message");
 
-let recognizer = null;
 let transcript = "";
 let isConfigured = false;
 let isListening = false;
-let submitWhenRecognitionEnds = false;
+let isStartingRecording = false;
+let isTranscribing = false;
+let stopRequested = false;
 let requestInProgress = false;
-let recognitionFailed = false;
 let readyTimer = null;
 
 function showError(message) {
@@ -77,6 +78,8 @@ apiKeyInput.addEventListener("input", () => {
 saveButton.addEventListener("click", async () => {
   clearError();
   saveButton.disabled = true;
+  modelStatus.textContent = "Preparing offline speech recognition. The model downloads once.";
+  modelStatus.classList.remove("hidden");
   try {
     const key = apiKeyInput.value.trim();
     if (!key && isConfigured) {
@@ -87,11 +90,13 @@ saveButton.addEventListener("click", async () => {
         model: modelInput.value.trim() || null,
       });
     }
+    await invoke("prepare_speech_model");
     const status = await invoke("get_status");
     if (!status.configured) {
       throw new Error("Sunday could not verify its saved API key. Please save it again.");
     }
     isConfigured = true;
+    modelStatus.classList.add("hidden");
     apiKeyInput.value = "";
     readyMessage.classList.remove("hidden");
     setupView.querySelectorAll("label, input, .hint, #save-key").forEach((element) => {
@@ -116,6 +121,7 @@ saveButton.addEventListener("click", async () => {
     }, 2200);
   } catch (error) {
     saveButton.disabled = false;
+    modelStatus.classList.add("hidden");
     showError(String(error));
   }
 });
@@ -125,65 +131,40 @@ document.querySelector("#settings-button").addEventListener("click", () => {
   showSetup();
 });
 
-function stopRecognition() {
-  if (!recognizer) return;
+async function startRecording() {
+  transcript = "";
+  isStartingRecording = true;
+  stopRequested = false;
   try {
-    recognizer.stop();
+    await invoke("start_recording");
+    isListening = true;
+    if (stopRequested) {
+      isListening = false;
+      await stopAndTranscribe();
+    }
   } catch (error) {
-    showError(`Could not stop speech recognition: ${error}`);
+    showError(String(error));
+    await new Promise((resolve) => window.setTimeout(resolve, 2500));
+    await hideWindow().catch((hideError) => showError(String(hideError)));
+  } finally {
+    isStartingRecording = false;
   }
 }
 
-function startRecognition() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    showError("Speech recognition is unavailable in this WebView.");
-    hideWindow().catch((error) => showError(String(error)));
-    return;
-  }
-
-  transcript = "";
-  recognitionFailed = false;
-  submitWhenRecognitionEnds = false;
-  isListening = true;
-  recognizer = new SpeechRecognition();
-  recognizer.lang = navigator.language || "en-US";
-  recognizer.interimResults = true;
-  recognizer.continuous = true;
-  recognizer.onresult = (event) => {
-    transcript = Array.from(event.results)
-      .map((result) => result[0].transcript)
-      .join(" ")
-      .trim();
-  };
-  recognizer.onerror = (event) => {
-    showError(`Speech recognition failed: ${event.error}.`);
-    recognitionFailed = true;
-    isListening = false;
-    submitWhenRecognitionEnds = false;
-    stopRecognition();
-  };
-  recognizer.onend = () => {
-    recognizer = null;
-    isListening = false;
-    if (submitWhenRecognitionEnds && transcript) {
-      submitWhenRecognitionEnds = false;
-      askQuestion(transcript);
-    } else {
-      submitWhenRecognitionEnds = false;
-      const delay = recognitionFailed ? 2500 : 0;
-      recognitionFailed = false;
-      window.setTimeout(hideWindow, delay);
-    }
-  };
-
+async function stopAndTranscribe() {
+  isTranscribing = true;
   try {
-    recognizer.start();
+    transcript = await invoke("stop_recording");
+    if (!transcript.trim()) {
+      throw new Error("No speech was recognized. Please speak and try again.");
+    }
+    await askQuestion(transcript);
   } catch (error) {
-    recognizer = null;
-    isListening = false;
-    showError(`Could not start speech recognition: ${error}`);
-    hideWindow().catch((hideError) => showError(String(hideError)));
+    showError(String(error));
+    await new Promise((resolve) => window.setTimeout(resolve, 2500));
+    await hideWindow().catch((hideError) => showError(String(hideError)));
+  } finally {
+    isTranscribing = false;
   }
 }
 
@@ -208,17 +189,28 @@ async function askQuestion(question) {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && isListening) {
+  if (event.key === "Enter" && (isListening || isStartingRecording)) {
     event.preventDefault();
-    submitWhenRecognitionEnds = true;
-    isListening = false;
-    stopRecognition();
+    if (isStartingRecording) {
+      stopRequested = true;
+    } else {
+      isListening = false;
+      void stopAndTranscribe();
+    }
   }
 });
 
 async function initialize() {
   await listen("voice-start", () => {
-    if (readyTimer !== null || requestInProgress) return;
+    if (
+      readyTimer !== null ||
+      requestInProgress ||
+      isListening ||
+      isStartingRecording ||
+      isTranscribing
+    ) {
+      return;
+    }
     void (async () => {
       const status = await invoke("get_status");
       isConfigured = status.configured;
@@ -230,7 +222,7 @@ async function initialize() {
       }
       showAssistant();
       await presentWindow(true);
-      startRecognition();
+      await startRecording();
     })().catch((error) => showError(String(error)));
   });
   const status = await invoke("get_status");
@@ -239,6 +231,11 @@ async function initialize() {
     modelInput.value = status.model || "";
     providerHint.textContent = `Current provider: ${status.provider}. Leave the key blank to only change the model.`;
     saveButton.textContent = "Save settings";
+    showSetup();
+    modelStatus.textContent = "Preparing offline speech recognition. The model downloads once.";
+    modelStatus.classList.remove("hidden");
+    await invoke("prepare_speech_model");
+    modelStatus.classList.add("hidden");
     await invoke("set_hotkey_active", { active: true });
     await hideWindow();
   } else {
