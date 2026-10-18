@@ -7,7 +7,7 @@ use std::{
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    FromSample, Sample, SampleFormat, SizedSample, Stream,
+    ErrorKind, FromSample, Sample, SampleFormat, SizedSample, Stream,
 };
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
@@ -76,7 +76,8 @@ pub fn start_recording() -> Result<Recording, String> {
     let channels = input_config.channels();
     let sample_format = input_config.sample_format();
     let stream_config: cpal::StreamConfig = input_config.into();
-    let samples = Arc::new(Mutex::new(Vec::new()));
+    let initial_sample_capacity = sample_rate as usize * channels as usize * 30;
+    let samples = Arc::new(Mutex::new(Vec::with_capacity(initial_sample_capacity)));
     let stream_error = Arc::new(Mutex::new(None));
 
     let stream = match sample_format {
@@ -200,13 +201,20 @@ where
                 output.extend(input.iter().copied().map(f32::from_sample));
             },
             move |error| {
+                if is_recoverable_audio_error(error.kind()) {
+                    return;
+                }
                 if let Ok(mut state) = error_state.lock() {
-                    *state = Some(error.to_string());
+                    *state = Some(format!("{}: {error}", error.kind()));
                 }
             },
             None::<Duration>,
         )
         .map_err(|error| format!("Could not open the microphone: {error}"))
+}
+
+fn is_recoverable_audio_error(kind: ErrorKind) -> bool {
+    kind == ErrorKind::Xrun
 }
 
 pub fn transcribe(recording: Recording, model_path: PathBuf) -> Result<String, String> {
@@ -314,7 +322,8 @@ pub async fn speak(text: String) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{convert_to_whisper_audio, WHISPER_SAMPLE_RATE};
+    use super::{convert_to_whisper_audio, is_recoverable_audio_error, WHISPER_SAMPLE_RATE};
+    use cpal::ErrorKind;
 
     #[test]
     fn converts_stereo_audio_to_mono_at_whisper_rate() {
@@ -336,5 +345,12 @@ mod tests {
     fn rejects_invalid_audio_format() {
         assert!(convert_to_whisper_audio(&[], 0, 1).is_err());
         assert!(convert_to_whisper_audio(&[], 16_000, 0).is_err());
+    }
+
+    #[test]
+    fn treats_audio_glitches_as_recoverable_but_other_stream_errors_as_fatal() {
+        assert!(is_recoverable_audio_error(ErrorKind::Xrun));
+        assert!(!is_recoverable_audio_error(ErrorKind::BackendError));
+        assert!(!is_recoverable_audio_error(ErrorKind::DeviceNotAvailable));
     }
 }
