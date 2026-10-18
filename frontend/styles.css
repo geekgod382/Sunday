@@ -112,6 +112,13 @@ button {
   color: #b9bfcc;
   font-size: 14px;
   letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.status-error {
+  color: #ff9d9d;
+  font-size: 12px;
 }
 
 .error {

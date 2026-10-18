@@ -2,7 +2,8 @@ use std::{
     fs,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Duration,
+    thread,
+    time::{Duration, Instant},
 };
 
 use cpal::{
@@ -313,8 +314,24 @@ pub async fn speak(text: String) -> Result<(), String> {
             tts::Tts::default().map_err(|error| format!("Speech output failed: {error}"))?;
         speech
             .speak(&text, true)
-            .map(|_| ())
-            .map_err(|error| format!("Speech output failed: {error}"))
+            .map_err(|error| format!("Speech output failed: {error}"))?;
+
+        let deadline = Instant::now() + Duration::from_secs(120);
+        loop {
+            let speaking = speech
+                .is_speaking()
+                .map_err(|error| format!("Could not check speech playback: {error}"))?;
+            if !speaking {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                speech.stop().map_err(|error| {
+                    format!("Speech playback timed out and could not stop: {error}")
+                })?;
+                return Err("Speech playback timed out.".to_string());
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
     })
     .await
     .map_err(|error| format!("Speech output task failed: {error}"))?

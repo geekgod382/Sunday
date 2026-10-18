@@ -3,6 +3,7 @@ const { listen } = window.__TAURI__.event;
 
 const setupView = document.querySelector("#setup");
 const assistantView = document.querySelector("#assistant");
+const statusLine = document.querySelector("#status");
 const appHeader = document.querySelector("#app-header");
 const apiKeyInput = document.querySelector("#api-key");
 const modelInput = document.querySelector("#model");
@@ -22,6 +23,11 @@ let requestInProgress = false;
 let readyTimer = null;
 
 function showError(message) {
+  if (!assistantView.classList.contains("hidden")) {
+    statusLine.textContent = message;
+    statusLine.classList.add("status-error");
+    return;
+  }
   errorBox.textContent = message;
   errorBox.classList.remove("hidden");
 }
@@ -29,6 +35,12 @@ function showError(message) {
 function clearError() {
   errorBox.textContent = "";
   errorBox.classList.add("hidden");
+  statusLine.classList.remove("status-error");
+}
+
+function setStatus(message) {
+  statusLine.textContent = message;
+  statusLine.classList.remove("status-error");
 }
 
 function showSetup() {
@@ -51,6 +63,7 @@ function showAssistant() {
   setupView.classList.add("hidden");
   assistantView.classList.remove("hidden");
   clearError();
+  setStatus("Listening ...");
 }
 
 async function refreshProvider() {
@@ -144,8 +157,6 @@ async function startRecording() {
     }
   } catch (error) {
     showError(String(error));
-    await new Promise((resolve) => window.setTimeout(resolve, 2500));
-    await hideWindow().catch((hideError) => showError(String(hideError)));
   } finally {
     isStartingRecording = false;
   }
@@ -153,6 +164,7 @@ async function startRecording() {
 
 async function stopAndTranscribe() {
   isTranscribing = true;
+  setStatus("Transcribing ...");
   try {
     transcript = await invoke("stop_recording");
     if (!transcript.trim()) {
@@ -161,8 +173,6 @@ async function stopAndTranscribe() {
     await askQuestion(transcript);
   } catch (error) {
     showError(String(error));
-    await new Promise((resolve) => window.setTimeout(resolve, 2500));
-    await hideWindow().catch((hideError) => showError(String(hideError)));
   } finally {
     isTranscribing = false;
   }
@@ -174,17 +184,20 @@ async function askQuestion(question) {
     return;
   }
   requestInProgress = true;
-  let failed = false;
+  let completed = false;
   try {
+    setStatus("Thinking ...");
     const result = await invoke("ask", { question });
+    setStatus("Speaking ...");
     await invoke("speak", { text: result.answer });
+    completed = true;
   } catch (error) {
-    failed = true;
     showError(String(error));
   } finally {
-    if (failed) await new Promise((resolve) => window.setTimeout(resolve, 2500));
     requestInProgress = false;
-    await hideWindow().catch((error) => showError(String(error)));
+    if (completed) {
+      await hideWindow().catch((error) => showError(String(error)));
+    }
   }
 }
 
