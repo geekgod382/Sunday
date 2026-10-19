@@ -61,7 +61,7 @@ pub async fn ask(
     question: &str,
 ) -> Result<Answer, String> {
     let client = reqwest::Client::new();
-    let system_prompt = "You are Sunday, a concise desktop assistant. Answer clearly and briefly. Include useful source URLs when relevant.";
+    let system_prompt = "You are Sunday, a concise desktop assistant. Answer clearly and briefly. The output should not contain any HTML or Markdown formatting.";
     let response = match provider {
         Provider::OpenAi | Provider::Groq | Provider::Xai => {
             let base_url = match provider {
