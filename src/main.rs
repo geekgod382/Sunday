@@ -172,13 +172,11 @@ struct AskResult {
 
 #[tauri::command]
 async fn speak(app: AppHandle, text: String) -> Result<(), String> {
-    speech::speak(text).await?;
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "Sunday's window is unavailable after speech playback.".to_string())?;
-    window
-        .hide()
-        .map_err(|error| format!("Speech finished, but Sunday's window could not close: {error}"))
+    let result = speech::speak(text).await;
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+    result
 }
 
 #[tauri::command]

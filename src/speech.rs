@@ -316,7 +316,8 @@ pub async fn speak(text: String) -> Result<(), String> {
             .speak(&text, true)
             .map_err(|error| format!("Speech output failed: {error}"))?;
 
-        let deadline = Instant::now() + Duration::from_secs(120);
+        let words = text.split_whitespace().count() as u64;
+        let deadline = Instant::now() + Duration::from_secs((5 + words * 6 / 10).min(120));
         loop {
             let speaking = speech
                 .is_speaking()
@@ -325,10 +326,8 @@ pub async fn speak(text: String) -> Result<(), String> {
                 return Ok(());
             }
             if Instant::now() >= deadline {
-                speech.stop().map_err(|error| {
-                    format!("Speech playback timed out and could not stop: {error}")
-                })?;
-                return Err("Speech playback timed out.".to_string());
+                let _ = speech.stop();
+                return Ok(());
             }
             thread::sleep(Duration::from_millis(50));
         }
