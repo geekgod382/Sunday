@@ -184,20 +184,15 @@ async function askQuestion(question) {
     return;
   }
   requestInProgress = true;
-  let completed = false;
   try {
     setStatus("Thinking ...");
     const result = await invoke("ask", { question });
     setStatus("Speaking ...");
     await invoke("speak", { text: result.answer });
-    completed = true;
   } catch (error) {
     showError(String(error));
   } finally {
     requestInProgress = false;
-    if (completed) {
-      await hideWindow().catch((error) => showError(String(error)));
-    }
   }
 }
 
