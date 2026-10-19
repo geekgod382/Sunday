@@ -303,7 +303,7 @@ mod win_key {
     static APP: OnceLock<AppHandle> = OnceLock::new();
     static HELD_KEYS: AtomicU8 = AtomicU8::new(0);
     static HOTKEY_ACTIVE: AtomicBool = AtomicBool::new(false);
-    static SUPPRESS_KEY_SEQUENCE: AtomicBool = AtomicBool::new(false);
+    static SWALLOWED_KEYS: AtomicU8 = AtomicU8::new(0);
     static CHORD_TRIGGERED: AtomicBool = AtomicBool::new(false);
 
     const WIN_KEYS: u8 = 0b0011;
@@ -363,34 +363,31 @@ mod win_key {
                 _ => 0,
             };
             if key_bit != 0 {
-                let mut suppress = SUPPRESS_KEY_SEQUENCE.load(Ordering::SeqCst);
+                let mut suppress = false;
                 match w_param as u32 {
                     WM_KEYDOWN | WM_SYSKEYDOWN => {
-                        let previous = HELD_KEYS.fetch_or(key_bit, Ordering::SeqCst);
-                        let held = previous | key_bit;
-                        if held & WIN_KEYS != 0
+                        let held = HELD_KEYS.fetch_or(key_bit, Ordering::SeqCst) | key_bit;
+                        let triggered_now = held & WIN_KEYS != 0
                             && held & CTRL_KEYS != 0
                             && HOTKEY_ACTIVE.load(Ordering::SeqCst)
-                            && !CHORD_TRIGGERED.swap(true, Ordering::SeqCst)
-                        {
-                            SUPPRESS_KEY_SEQUENCE.store(true, Ordering::SeqCst);
+                            && !CHORD_TRIGGERED.swap(true, Ordering::SeqCst);
+                        if triggered_now {
                             emit("voice-start");
                         }
-                        suppress =
-                            key_bit & WIN_KEYS != 0 && SUPPRESS_KEY_SEQUENCE.load(Ordering::SeqCst);
+                        if key_bit & WIN_KEYS != 0 {
+                            let already = SWALLOWED_KEYS.load(Ordering::SeqCst) & key_bit != 0;
+                            if triggered_now || already {
+                                SWALLOWED_KEYS.fetch_or(key_bit, Ordering::SeqCst);
+                                suppress = true;
+                            }
+                        }
                     }
                     WM_KEYUP | WM_SYSKEYUP => {
-                        let previous = HELD_KEYS.fetch_and(!key_bit, Ordering::SeqCst);
-                        let held = previous & !key_bit;
+                        let held = HELD_KEYS.fetch_and(!key_bit, Ordering::SeqCst) & !key_bit;
                         if held & (WIN_KEYS | CTRL_KEYS) == 0 {
                             CHORD_TRIGGERED.store(false, Ordering::SeqCst);
                         }
-                        if key_bit & WIN_KEYS != 0 {
-                            suppress = SUPPRESS_KEY_SEQUENCE.load(Ordering::SeqCst);
-                            if held & WIN_KEYS == 0 {
-                                SUPPRESS_KEY_SEQUENCE.store(false, Ordering::SeqCst);
-                            }
-                        }
+                        suppress = SWALLOWED_KEYS.fetch_and(!key_bit, Ordering::SeqCst) & key_bit != 0;
                     }
                     _ => {}
                 }
